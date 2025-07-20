@@ -37,6 +37,7 @@
 		"@neondatabase/serverless": "^0.10.4",
 		"axios": "^1.10.0",
 		"drizzle-orm": "^0.40.0",
-		"mode-watcher": "^1.0.8"
+		"mode-watcher": "^1.0.8",
+		"uuid": "^11.1.0"
 	}
 }

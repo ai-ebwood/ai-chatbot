@@ -18,7 +18,11 @@ app.add_middleware(
 )
 
 
-@app.get("/")
-async def ask_question(question: str):
-    result = await run_agent(question=question)
+class ChatParams(BaseModel):
+    question: str
+    user_id: str
+
+@app.post("/chat")
+async def ask_question(params: ChatParams):
+    result = await run_agent(question=params.question, user_id=params.user_id)
     return result

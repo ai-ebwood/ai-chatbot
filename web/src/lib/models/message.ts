@@ -5,10 +5,12 @@ enum MessageRole {
 class BaseMessage {
   role: MessageRole;
   content: string;
+  is_loading: boolean;
 
-  constructor(role: MessageRole, content: string) {
+  constructor(role: MessageRole, content: string, is_loading: boolean = false) {
     this.role = role;
     this.content = content;
+    this.is_loading = is_loading;
   }
 
   isHuman() {
@@ -27,8 +29,8 @@ class HumanMessage extends BaseMessage {
 }
 
 class AIMessage extends BaseMessage {
-  constructor(content: string) {
-    super(MessageRole.ai, content);
+  constructor(content: string, is_loading: boolean = false) {
+    super(MessageRole.ai, content, is_loading);
   }
 }
 

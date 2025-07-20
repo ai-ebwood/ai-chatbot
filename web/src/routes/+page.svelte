@@ -5,21 +5,41 @@
   import Textarea from "$lib/components/ui/textarea/textarea.svelte";
   import { HumanMessage, type BaseMessage, AIMessage } from "$lib/models";
   import axios from "axios";
+  import { v4 as uuidv4 } from "uuid";
 
   let messages: BaseMessage[] = $state([]);
   let inputValue: string = $state("");
   let submitDisabled: boolean = $derived(inputValue.trim() === "");
+  const user_id = uuidv4();
+
+  let chatContainer: HTMLDivElement;
+
+  $effect(() => {
+    messages;
+
+    if (chatContainer) {
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+  });
 
   const handleSubmit = async () => {
     if (submitDisabled) return;
     const question = inputValue.trim();
     inputValue = "";
     messages.push(new HumanMessage(question));
-    const result = await axios.get(
-      `http://localhost:8000?question=${question}`
-    );
+
+    // loading message
+    messages.push(new AIMessage("...", true));
+
+    const result = await axios.post("http://localhost:8000/chat", {
+      question: question,
+      user_id: user_id,
+    });
 
     console.log(result.data);
+    // pop loading messages
+    messages.pop();
+
     messages.push(new AIMessage(result.data.content));
   };
   const handleKeydown = (event: KeyboardEvent) => {
@@ -37,6 +57,7 @@
     class="flex-1 flex flex-col justify-center overflow-y-hidden items-center"
   >
     <div
+      bind:this={chatContainer}
       class="flex flex-1 h-full flex-col text-4xl overflow-y-auto w-full max-w-5xl"
     >
       {#each messages as message}
@@ -47,7 +68,7 @@
           <div
             class="text-xl p-4 dark:text-gray-300 rounded-2xl dark:bg-gray-800 w-auto"
           >
-            {message.content}
+            {message.is_loading ? "...":message.content}
           </div>
         </div>
       {/each}

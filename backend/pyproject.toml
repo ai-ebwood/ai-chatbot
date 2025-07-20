@@ -10,6 +10,8 @@ dependencies = [
     "fastapi>=0.115.14",
     "langchain>=0.3.26",
     "langchain-openai>=0.3.26",
+    "langgraph>=0.5.3",
     "pydantic>=2.11.7",
+    "rich>=14.0.0",
     "uvicorn>=0.34.3",
 ]
