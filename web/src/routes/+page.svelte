@@ -6,6 +6,7 @@
   import { HumanMessage, type BaseMessage, AIMessage } from "$lib/models";
   import axios from "axios";
   import { v4 as uuidv4 } from "uuid";
+  import SvelteMarkdown from "svelte-markdown";
 
   let messages: BaseMessage[] = $state([]);
   let inputValue: string = $state("");
@@ -66,9 +67,15 @@
             (message.isHuman() ? "justify-end" : "")}
         >
           <div
-            class="text-xl p-4 dark:text-gray-300 rounded-2xl dark:bg-gray-800 w-auto"
+            class="text-xl p-4 dark:text-gray-300 rounded-2xl dark:bg-gray-800 w-auto prose dark:prose-invert max-w-none"
           >
-            {message.is_loading ? "...":message.content}
+            {#if message.is_loading}
+              {"..."}
+            {:else}
+              <SvelteMarkdown
+                source={message.content}
+              />
+            {/if}
           </div>
         </div>
       {/each}
