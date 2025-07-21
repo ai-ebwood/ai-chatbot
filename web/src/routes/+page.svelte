@@ -8,6 +8,7 @@
   import { v4 as uuidv4 } from "uuid";
   import SvelteMarkdown from "@humanspeak/svelte-markdown";
   import LinkRenderer from "$lib/components/LinkRenderer.svelte";
+  import { PUBLIC_BACKEND_URL } from "$env/static/public";
 
   let messages: BaseMessage[] = $state([]);
   let inputValue: string = $state("");
@@ -39,7 +40,7 @@
     // loading message
     messages.push(new AIMessage("...", true));
 
-    const result = await axios.post("http://localhost:8000/chat", {
+    const result = await axios.post(`${PUBLIC_BACKEND_URL}/chat`, {
       question: question,
       user_id: user_id,
     });
