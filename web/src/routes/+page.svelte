@@ -6,7 +6,8 @@
   import { HumanMessage, type BaseMessage, AIMessage } from "$lib/models";
   import axios from "axios";
   import { v4 as uuidv4 } from "uuid";
-  import SvelteMarkdown from "svelte-markdown";
+  import SvelteMarkdown from "@humanspeak/svelte-markdown";
+  import LinkRenderer from "$lib/components/LinkRenderer.svelte";
 
   let messages: BaseMessage[] = $state([]);
   let inputValue: string = $state("");
@@ -16,10 +17,16 @@
   let chatContainer: HTMLDivElement;
 
   $effect(() => {
-    messages;
+    // read messages.length to raise contact
+    messages.length;
 
     if (chatContainer) {
-      chatContainer.scrollTop = chatContainer.scrollHeight;
+      // use tick() to wait DOM render finish
+      import("svelte").then(({ tick }) => {
+        tick().then(() => {
+          chatContainer.scrollTop = chatContainer.scrollHeight;
+        });
+      });
     }
   });
 
@@ -74,6 +81,9 @@
             {:else}
               <SvelteMarkdown
                 source={message.content}
+                renderers={{
+                  link: LinkRenderer,
+                }}
               />
             {/if}
           </div>
