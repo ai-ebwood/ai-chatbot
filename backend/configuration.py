@@ -20,7 +20,6 @@ class Configuration(BaseModel):
         """Create a Configuration from a RunnableConfig."""
         configurable = config.get("configurable", {}) if config else {}
         field_names = list(cls.model_fields.keys())
-        print(field_names)
         values: dict[str, Any] = {
             field_name: os.environ.get(
                 field_name.upper(), configurable.get(field_name))
