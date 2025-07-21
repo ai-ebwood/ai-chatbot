@@ -67,7 +67,7 @@
             (message.isHuman() ? "justify-end" : "")}
         >
           <div
-            class="text-xl p-4 dark:text-gray-300 rounded-2xl dark:bg-gray-800 w-auto prose dark:prose-invert max-w-none"
+            class="text-xl p-4 dark:text-gray-300 rounded-2xl bg-gray-200 dark:bg-gray-800 w-auto prose dark:prose-invert max-w-none"
           >
             {#if message.is_loading}
               {"..."}
