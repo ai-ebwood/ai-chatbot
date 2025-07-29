@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "asyncio>=3.4.3",
+    "crawl4ai>=0.7.1",
     "ddgs>=9.4.0",
     "dotenv>=0.9.9",
     "duckduckgo-search>=8.1.1",
@@ -15,8 +16,18 @@ dependencies = [
     "langchain>=0.3.26",
     "langchain-community>=0.3.27",
     "langchain-openai>=0.3.26",
-    "langgraph>=0.5.3",
+    "langchain-postgres>=0.0.15",
+    "langchain-qdrant>=0.2.0",
+    "langgraph>=0.6.0",
+    "langgraph-bigtool>=0.0.3",
+    "langgraph-checkpoint-postgres>=2.0.23",
+    "langgraph-checkpoint-sqlite>=2.0.10",
+    "langmem>=0.0.29",
+    "playwright>=1.54.0",
+    "psycopg2>=2.9.10",
     "pydantic>=2.11.7",
+    "pyppeteer>=0.0.25",
     "rich>=14.0.0",
+    "tiktoken>=0.9.0",
     "uvicorn>=0.34.3",
 ]
