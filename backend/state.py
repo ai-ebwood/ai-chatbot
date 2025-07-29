@@ -1,3 +1,4 @@
+from pydantic import BaseModel
 from langgraph.graph import MessagesState
 
 from pydantic import Field
@@ -14,5 +15,11 @@ class State(MessagesState):
         default=0
     )
 
-class SummaryOutput(TypedDict):
-    summary: str
+class AgentState(MessagesState):
+    pass
+
+class UserProfile(BaseModel):
+    name: str | None = None
+    age: int | None = None
+    recent_memories: list[str] = []
+    preferences: dict | None = None

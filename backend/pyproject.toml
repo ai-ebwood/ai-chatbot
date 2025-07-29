@@ -20,6 +20,7 @@ dependencies = [
     "langchain-qdrant>=0.2.0",
     "langgraph>=0.6.0",
     "langgraph-bigtool>=0.0.3",
+    # "langgraph-checkpoint-postgres>=2.0.23",
     "langgraph-checkpoint-postgres>=2.0.23",
     "langgraph-checkpoint-sqlite>=2.0.10",
     "langmem>=0.0.29",

@@ -24,3 +24,14 @@ generate_summary_prompt = """
 输出结果:
 summary: 总结example
 """
+
+# 与已有记忆相关的prompt
+memory_prompt = """根据用户当前的相关记忆memories(可能为空)，回答用户的问题。
+
+<memories>
+{memories}
+</memories>
+"""
+
+generate_memory_prompt = """
+Update the existing user profile (or create a new one if it doesn't exist) based on the shared information."""
