@@ -3,7 +3,12 @@
   import ThemeToggle from "$lib/components/ThemeToggle.svelte";
   import Button from "$lib/components/ui/button/button.svelte";
   import Textarea from "$lib/components/ui/textarea/textarea.svelte";
-  import { HumanMessage, type BaseMessage, AIMessage } from "$lib/models";
+  import {
+    BaseMessage,
+    HumanMessage,
+    AIMessage,
+    stringToMessageType,
+  } from "$lib/models";
   import axios from "axios";
   import { v4 as uuidv4 } from "uuid";
   import SvelteMarkdown from "@humanspeak/svelte-markdown";
@@ -14,10 +19,15 @@
   let messages: BaseMessage[] = $state([]);
   let inputValue: string = $state("");
   let submitDisabled: boolean = $derived(inputValue.trim() === "");
-  const user_id = uuidv4();
-  const conversation_id = uuidv4();
+  const user_id = "6b6b8fc7-03c5-47d3-8917-07d73d215a98";
+  const conversation_id = "cd3861bc-ff9e-4b25-bc35-33ee42c849ef";
 
   let chatContainer: HTMLDivElement;
+
+  $effect(() => {
+    console.log("获取会话列表");
+    getConversation();
+  });
 
   $effect(() => {
     // read messages.length to raise contact
@@ -32,6 +42,26 @@
       });
     }
   });
+
+  const getConversation = async () => {
+    try {
+      const result = await axios.get(`${PUBLIC_BACKEND_URL}/conversation`, {
+        params: {
+          user_id,
+          conversation_id,
+        },
+      });
+
+      console.log(result.data);
+      messages = result.data.map(
+        (item: any) =>
+          new BaseMessage(stringToMessageType(item.type), item.content)
+      );
+      console.log(messages);
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const handleSubmit = async () => {
     if (submitDisabled) return;

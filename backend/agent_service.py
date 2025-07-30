@@ -25,7 +25,8 @@ from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langchain_core.messages import (
     HumanMessage,
     AIMessage,
-    BaseMessage
+    BaseMessage,
+    RemoveMessage
 )
 from langchain_core.prompts import SystemMessagePromptTemplate
 import psycopg
@@ -87,14 +88,33 @@ class AgentService:
             async_connection=self.db_conn_async)
         return db
 
-    def _filter_messages(self, state: AgentState):
-        current_round_messages = []
+    def _filter_messages_with_round(self, state: AgentState, round: int = 1):
+        """
+        从消息列表出过滤出最后{round}轮次HumanMessage开头的消息.
+
+        Args:
+            state: 状态，包含消息列表
+            round: 过滤轮次, 默认为1次，也就是本轮
+
+        Return: 
+            keep_messages: 保留的消息
+            remove_messages: 要删除的消息
+        """
         all_messages = state["messages"]
+        keep_messages = []
+        remove_messages = []
         for message in reversed(all_messages):
-            current_round_messages.append(message)
-            if isinstance(message, HumanMessage):
+            keep_messages.append(message)
+            if not isinstance(message, HumanMessage):
+                continue
+            round -= 1
+            if round <= 0:
                 break
-        return current_round_messages
+        if round <= 0:
+            keep_count = len(keep_messages)
+            remove_messages = [RemoveMessage(message.id)
+                               for message in all_messages[:-keep_count]]
+        return keep_messages, remove_messages
 
     def _create_config(self, user_id: str, conversation_id: str) -> RunnableConfig:
         return RunnableConfig(
@@ -186,8 +206,9 @@ class AgentService:
         # 1. 在向量数据库中进行RAG搜索
         rprint("Step 1: 正在进行向量搜索...")
         # asearch 返回的是 Document 对象
-        retrieved_docs = await self.vector_store.asimilarity_search(user_query)
+        retrieved_docs = await self.vector_store.asimilarity_search_with_score(user_query, k=2)
         rprint(retrieved_docs)
+        rprint("\n")
 
         if not retrieved_docs:
             rprint("向量搜索未找到相关文档。")
@@ -196,13 +217,12 @@ class AgentService:
         # 2. 从检索到的文档元数据中提取 message_id 列表
         rprint("Step 2: 从元数据中提取 message_ids...")
         target_message_ids = []
-        for doc in retrieved_docs:
+        for (doc, score) in retrieved_docs:
             if "message_ids" in doc.metadata:
                 target_message_ids.extend(doc.metadata["message_ids"])
 
         # 去重
         unique_message_ids = list(set(target_message_ids))
-        rprint(f"找到相关的 message_ids: {unique_message_ids}")
 
         if not unique_message_ids:
             return []
@@ -215,7 +235,7 @@ class AgentService:
 
         retrieved_messages = await db.aget_messages_by_ids(unique_message_ids)
 
-        rprint("成功获取到的历史消息上下文:")
+        rprint("成功获取到的历史消息上下文:\n")
         # rprint(retrieved_messages)
 
         return retrieved_messages
@@ -225,9 +245,10 @@ class AgentService:
         调用LLM
         """
         start_time = datetime.now()
-        print(f"开始处理请求 (Thread ID: {config['configurable']['thread_id']})")
+        rprint(f"开始处理请求 (Thread ID: {config['configurable']['thread_id']})\n")
 
-        current_round_messages = self._filter_messages(state)
+        current_round_messages, remove_messages = self._filter_messages_with_round(
+            state, round=2)
         last_human_message = None
         memories = []
         histories = []
@@ -236,10 +257,10 @@ class AgentService:
                 last_human_message = message
                 break
         if last_human_message is not None:
-            # memories = await self.store_memory_manager.asearch(
-            #     query=last_human_message.content,
-            #     config=config
-            # )
+            memories = await self.store_memory_manager.asearch(
+                query=last_human_message.content,
+                config=config
+            )
             user_id = config["configurable"]["user_id"]
             conversation_id = config["configurable"]["conversation_id"]
             histories = await self.rag_and_get_context(
@@ -248,12 +269,12 @@ class AgentService:
                 conversation_id=conversation_id
             )
         rprint(
-            f"全部消息数量: {len(state["messages"])}, 本轮消息数量: {len(current_round_messages)}\n当前记忆: {memories}")
+            f"全部消息数量: {len(state["messages"])}, 本轮消息数量: {len(current_round_messages)}\n当前记忆: {memories}\n")
 
         system_message = SystemMessagePromptTemplate.from_template(
             system_prompt
         ).format(memories=memories, histories=get_conversation(histories))
-        rprint(f"system_message: {system_message.content}")
+        rprint(f"system_message: {system_message.content}\n")
 
         response = await self.llm.ainvoke([system_message, *current_round_messages])
 
@@ -263,16 +284,12 @@ class AgentService:
         asyncio.create_task(self._save_memory(all_messages, config))
 
         total_time = datetime.now() - start_time
-        print(
-            f"完成处理请求 (Thread ID: {config['configurable']['thread_id']}), 花费时间: {total_time}")
+        rprint(
+            f"完成处理请求 (Thread ID: {config['configurable']['thread_id']}), 花费时间: {total_time}\n")
 
-        return {"messages": [response]}
+        return {"messages": remove_messages + [response]}
 
     async def arun(self, *, user_input: str, user_id: str, conversation_id: str) -> AIMessage:
-        """
-        这是暴露给外部调用的主方法。
-        它封装了配置创建和调用 agent 的逻辑。
-        """
         config = self._create_config(user_id, conversation_id)
 
         response = await self.agent.ainvoke(
@@ -295,8 +312,18 @@ class AgentService:
             current_store = await self.agent.store.asearch(
                 ("memories", user_id)
             )
-            rprint(current_store)
+            rprint(f"{current_store}\n")
             return [{"namespace": item.namespace, "key": item.key, "value": item.value} for item in current_store]
         except Exception as e:
-            print(f"获取store出错: {e}")
+            rprint(f"获取store出错: {e}\n")
+            return []
+
+    async def aget_conversation(self, user_id: str, conversation_id: str):
+        try:
+            db = self._get_db(conversation_id)
+            messages = await db.aget_messages()
+            return messages
+
+        except Exception as e:
+            rprint(f"获取conversation出错: {e}")
             return []

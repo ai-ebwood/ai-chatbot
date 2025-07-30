@@ -1,4 +1,6 @@
 
+from qdrant_client import QdrantClient
+import os
 from langchain_postgres import PGEngine, PGVectorStore
 from psycopg import AsyncConnection
 from sqlalchemy.ext.asyncio import create_async_engine
@@ -6,6 +8,9 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from constants import CONVERSATION_VECTOR_TABLE_NAME
 from rich import print as rprint
 from langchain_core.embeddings import Embeddings
+from langchain_qdrant import QdrantVectorStore
+from qdrant_client.async_qdrant_client import AsyncQdrantClient
+from qdrant_client.http.models import VectorParams, Distance
 
 
 async def create_pg_vector(async_pg_conn: str, embeddings: Embeddings):
@@ -26,5 +31,19 @@ async def create_pg_vector(async_pg_conn: str, embeddings: Embeddings):
     )
     return pg_vector
 
+
 async def create_qdrant_vector(embeddings: Embeddings):
-    pass
+    client = QdrantClient(url=os.environ["QDRANT_URL"])
+
+    if not client.collection_exists(CONVERSATION_VECTOR_TABLE_NAME):
+        client.create_collection(
+            collection_name=CONVERSATION_VECTOR_TABLE_NAME,
+            vectors_config=VectorParams(size=1536, distance=Distance.COSINE)
+        )
+
+    vector_store = QdrantVectorStore(
+        client=client,
+        collection_name=CONVERSATION_VECTOR_TABLE_NAME,
+        embedding=embeddings,
+    )
+    return vector_store

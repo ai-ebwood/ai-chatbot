@@ -3,7 +3,7 @@ from rich import print as rprint
 import os
 import psycopg
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, Depends
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
@@ -16,7 +16,7 @@ from langgraph.store.postgres import AsyncPostgresStore
 from langchain_postgres import PGVectorStore, PGEngine
 from langchain_openai import OpenAIEmbeddings
 from chat_history import PostgresChatMessageHistoryWithId
-from vectory_store import create_pg_vector
+from vectory_store import create_pg_vector, create_qdrant_vector
 
 from constants import (
     CONVERSATION_VECTOR_TABLE_NAME,
@@ -52,7 +52,8 @@ async def lifespan(app: FastAPI):
         # await store.setup()
 
         # create vector store
-        pg_vector = await create_pg_vector(async_pg_conn, embeddings)
+        # vector_store = await create_pg_vector(async_pg_conn, embeddings)
+        vector_store = await create_qdrant_vector(embeddings)
 
         # create db
         async_connection = await psycopg.AsyncConnection.connect(pg_conn)
@@ -64,7 +65,7 @@ async def lifespan(app: FastAPI):
         agent_service = AgentService(
             checkpointer=checkpointer,
             store=store,
-            vector_store=pg_vector,
+            vector_store=vector_store,
             db_conn_async=async_connection)
 
         # 将实例附加到 app.state，以便在请求处理程序中访问
@@ -98,6 +99,11 @@ class ChatParams(BaseModel):
     user_id: str
     conversation_id: str
 
+
+class ConversationParams(BaseModel):
+    user_id: str
+    conversation_id: str
+
 # --- API 端点 ---
 
 
@@ -116,7 +122,7 @@ async def ask_question(params: ChatParams, request: Request):
         user_id=params.user_id,
         conversation_id=params.conversation_id)
 
-    return {"content": result.content}
+    return {"id": result.id, "content": result.content, "type": result.type}
 
 
 @app.get("/")
@@ -125,12 +131,12 @@ def read_root():
 
 
 @app.get("/state")
-async def get_state(user_id: str, request: Request):
+async def get_state(request: Request, params: ConversationParams = Depends()):
     # 从 app.state 获取在启动时创建的服务实例
     agent_service: AgentService = request.app.state.agent_service
 
     # 调用服务的异步方法
-    result = await agent_service.aget_state(user_id)
+    result = await agent_service.aget_state(params.user_id, params.conversation_id)
 
     return result
 
@@ -144,3 +150,14 @@ async def get_store(user_id: str, request: Request):
     result = await agent_service.aget_store(user_id)
 
     return result
+
+
+@app.get("/conversation")
+async def get_store(request: Request, params: ConversationParams = Depends()):
+    # 从 app.state 获取在启动时创建的服务实例
+    agent_service: AgentService = request.app.state.agent_service
+
+    # 调用服务的异步方法
+    result = await agent_service.aget_conversation(params.user_id, params.conversation_id)
+
+    return [{"id": message.id, "type": message.type, "content": message.content}for message in result]
