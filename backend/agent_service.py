@@ -88,7 +88,7 @@ class AgentService:
             async_connection=self.db_conn_async)
         return db
 
-    def _filter_messages_with_round(self, state: AgentState, round: int = 1):
+    def _filter_messages_with_round(self, state: AgentState, round: int = 1) -> tuple[list[BaseMessage], list[BaseMessage], list[BaseMessage]]:
         """
         从消息列表出过滤出最后{round}轮次HumanMessage开头的消息.
 
@@ -97,16 +97,25 @@ class AgentService:
             round: 过滤轮次, 默认为1次，也就是本轮
 
         Return: 
+            current_round_messages: 本轮消息
             keep_messages: 保留的消息
             remove_messages: 要删除的消息
         """
         all_messages = state["messages"]
+        current_round_messages = []
         keep_messages = []
         remove_messages = []
+        found_last_human = False
         for message in reversed(all_messages):
             keep_messages.append(message)
+
+            if not found_last_human:
+                current_round_messages.append(message)
+
             if not isinstance(message, HumanMessage):
                 continue
+
+            found_last_human = True
             round -= 1
             if round <= 0:
                 break
@@ -114,7 +123,7 @@ class AgentService:
             keep_count = len(keep_messages)
             remove_messages = [RemoveMessage(message.id)
                                for message in all_messages[:-keep_count]]
-        return keep_messages, remove_messages
+        return current_round_messages, keep_messages, remove_messages
 
     def _create_config(self, user_id: str, conversation_id: str) -> RunnableConfig:
         return RunnableConfig(
@@ -247,7 +256,7 @@ class AgentService:
         start_time = datetime.now()
         rprint(f"开始处理请求 (Thread ID: {config['configurable']['thread_id']})\n")
 
-        current_round_messages, remove_messages = self._filter_messages_with_round(
+        current_round_messages, keep_messages, remove_messages = self._filter_messages_with_round(
             state, round=2)
         last_human_message = None
         memories = []
@@ -269,19 +278,19 @@ class AgentService:
                 conversation_id=conversation_id
             )
         rprint(
-            f"全部消息数量: {len(state["messages"])}, 本轮消息数量: {len(current_round_messages)}\n当前记忆: {memories}\n")
+            f"全部消息数量: {len(state["messages"])}, 本次保存的消息数量: {len(keep_messages)}\n本轮消息数量: {len(current_round_messages)}\n当前记忆: {memories}\n")
 
         system_message = SystemMessagePromptTemplate.from_template(
             system_prompt
         ).format(memories=memories, histories=get_conversation(histories))
         rprint(f"system_message: {system_message.content}\n")
 
-        response = await self.llm.ainvoke([system_message, *current_round_messages])
+        response = await self.llm.ainvoke([system_message, *keep_messages])
 
-        all_messages = current_round_messages + [response]
+        current_round_messages.append(response)
 
         # 异步保存记忆
-        asyncio.create_task(self._save_memory(all_messages, config))
+        asyncio.create_task(self._save_memory(current_round_messages, config))
 
         total_time = datetime.now() - start_time
         rprint(
