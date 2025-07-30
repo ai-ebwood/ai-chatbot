@@ -1,6 +1,7 @@
 enum MessageRole {
   human,
   ai,
+  error,
 }
 class BaseMessage {
   role: MessageRole;
@@ -18,7 +19,11 @@ class BaseMessage {
   }
 
   isAI() {
-    return this.role == MessageRole.human;
+    return this.role == MessageRole.ai;
+  }
+
+  isError() {
+    return this.role == MessageRole.error;
   }
 }
 
@@ -34,4 +39,10 @@ class AIMessage extends BaseMessage {
   }
 }
 
-export { BaseMessage, MessageRole, HumanMessage, AIMessage };
+class ErrorMessage extends BaseMessage {
+  constructor(content: string) {
+    super(MessageRole.error, content);
+  }
+}
+
+export { BaseMessage, MessageRole, HumanMessage, AIMessage, ErrorMessage };

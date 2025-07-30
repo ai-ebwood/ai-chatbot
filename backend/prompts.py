@@ -26,11 +26,15 @@ summary: 总结example
 """
 
 # 与已有记忆相关的prompt
-memory_prompt = """根据用户当前的相关记忆memories(可能为空)，回答用户的问题。
+system_prompt = """根据用户当前的相关记忆memories(可能为空), 和历史聊天记录，回答用户的问题。
 
 <memories>
 {memories}
 </memories>
+
+<histories>
+{histories}
+</histories>
 """
 
 generate_memory_prompt = """

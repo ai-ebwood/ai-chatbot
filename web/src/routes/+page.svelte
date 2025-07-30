@@ -9,11 +9,13 @@
   import SvelteMarkdown from "@humanspeak/svelte-markdown";
   import LinkRenderer from "$lib/components/LinkRenderer.svelte";
   import { PUBLIC_BACKEND_URL } from "$env/static/public";
+  import { ErrorMessage } from "$lib/models/message";
 
   let messages: BaseMessage[] = $state([]);
   let inputValue: string = $state("");
   let submitDisabled: boolean = $derived(inputValue.trim() === "");
   const user_id = uuidv4();
+  const conversation_id = uuidv4();
 
   let chatContainer: HTMLDivElement;
 
@@ -40,16 +42,22 @@
     // loading message
     messages.push(new AIMessage("...", true));
 
-    const result = await axios.post(`${PUBLIC_BACKEND_URL}/chat`, {
-      question: question,
-      user_id: user_id,
-    });
+    try {
+      const result = await axios.post(`${PUBLIC_BACKEND_URL}/chat`, {
+        question,
+        user_id,
+        conversation_id,
+      });
 
-    console.log(result.data);
-    // pop loading messages
-    messages.pop();
-
-    messages.push(new AIMessage(result.data.content));
+      console.log(result.data);
+      // pop loading messages
+      messages.pop();
+      messages.push(new AIMessage(result.data.content));
+    } catch (e) {
+      console.error(e);
+      messages.pop();
+      messages.push(new ErrorMessage(`出错了: ${e}`));
+    }
   };
   const handleKeydown = (event: KeyboardEvent) => {
     if (submitDisabled) return;
@@ -72,10 +80,15 @@
       {#each messages as message}
         <div
           class={"flex flex-row my-2 " +
-            (message.isHuman() ? "justify-end" : "")}
+            (message.isHuman()
+              ? "justify-end"
+              : message.isAI()
+                ? "justify-start"
+                : "justify-center")}
         >
           <div
-            class="text-xl p-4 dark:text-gray-300 rounded-2xl bg-gray-200 dark:bg-gray-800 w-auto prose dark:prose-invert max-w-none"
+            class={"text-xl p-4 dark:text-gray-300 rounded-2xl bg-gray-200 dark:bg-gray-800 w-auto prose dark:prose-invert max-w-none" +
+              (message.isError() ? " !text-red-400" : "")}
           >
             {#if message.is_loading}
               {"..."}

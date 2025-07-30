@@ -1,13 +1,13 @@
 # main.py
 from rich import print as rprint
 import os
+import psycopg
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import create_async_engine
-from langchain_core.vectorstores.base import VectorStore
 
 # 导入我们的服务和 LangGraph/LangChain 的组件
 from agent_service import AgentService
@@ -15,6 +15,13 @@ from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from langgraph.store.postgres import AsyncPostgresStore
 from langchain_postgres import PGVectorStore, PGEngine
 from langchain_openai import OpenAIEmbeddings
+from chat_history import PostgresChatMessageHistoryWithId
+from vectory_store import create_pg_vector
+
+from constants import (
+    CONVERSATION_VECTOR_TABLE_NAME,
+    CONVERSATION_TABLE_NAME
+)
 
 load_dotenv()
 
@@ -30,8 +37,6 @@ async def lifespan(app: FastAPI):
     pg_conn = os.environ["NEON_DB_URL"]
     async_pg_conn = os.environ["NEON_DB_URL_ASYNC"]
 
-    TABLE_NAME = "ai_chatbot_conversation"
-
     embeddings = OpenAIEmbeddings(
         model="text-embedding-3-small"
     )
@@ -43,29 +48,24 @@ async def lifespan(app: FastAPI):
             index={"dims": 1536, "embed": embeddings}
         ) as store
     ):
-        engine = create_async_engine(async_pg_conn)
-
-        pg_engine = PGEngine.from_engine(engine=engine)
-
-        try:
-            await pg_engine.ainit_vectorstore_table(
-                table_name=TABLE_NAME,
-                vector_size=1536,
-            )
-        except Exception as e:
-            print(f"创建表失败: {e}")
-
-        pg_vector = await PGVectorStore.create(
-            engine=pg_engine,
-            embedding_service=embeddings,
-            table_name=TABLE_NAME
-        )
-        # 新数据库需要setup
         # await checkpointer.setup()
         # await store.setup()
+
+        # create vector store
+        pg_vector = await create_pg_vector(async_pg_conn, embeddings)
+
+        # create db
+        async_connection = await psycopg.AsyncConnection.connect(pg_conn)
+
+        # Create the table schema (only needs to be done once)
+        await PostgresChatMessageHistoryWithId.acreate_tables(async_connection, CONVERSATION_TABLE_NAME)
+
         # 创建 AgentService 实例，注入依赖项
         agent_service = AgentService(
-            checkpointer=checkpointer, store=store, async_pg_conn=async_pg_conn, vector_store=pg_vector)
+            checkpointer=checkpointer,
+            store=store,
+            vector_store=pg_vector,
+            db_conn_async=async_connection)
 
         # 将实例附加到 app.state，以便在请求处理程序中访问
         app.state.agent_service = agent_service
@@ -96,6 +96,7 @@ app.add_middleware(
 class ChatParams(BaseModel):
     question: str
     user_id: str
+    conversation_id: str
 
 # --- API 端点 ---
 
@@ -110,7 +111,10 @@ async def ask_question(params: ChatParams, request: Request):
     agent_service: AgentService = request.app.state.agent_service
 
     # 调用服务的异步方法
-    result = await agent_service.arun(user_input=params.question, user_id=params.user_id)
+    result = await agent_service.arun(
+        user_input=params.question,
+        user_id=params.user_id,
+        conversation_id=params.conversation_id)
 
     return {"content": result.content}
 

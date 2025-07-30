@@ -1,0 +1,8 @@
+{
+  "dependencies": ".",
+  "graphs": {
+    "ai-chatbot": ""
+  },
+  "env": ".env",
+  "image_distro": "wolfi"
+}
