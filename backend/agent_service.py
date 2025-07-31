@@ -107,10 +107,10 @@ class AgentService:
         remove_messages = []
         found_last_human = False
         for message in reversed(all_messages):
-            keep_messages.append(message)
+            keep_messages.insert(0, message)
 
             if not found_last_human:
-                current_round_messages.append(message)
+                current_round_messages.insert(0, message)
 
             if not isinstance(message, HumanMessage):
                 continue
@@ -266,10 +266,15 @@ class AgentService:
                 last_human_message = message
                 break
         if last_human_message is not None:
+            calculate_time = datetime.now()
+            rprint(f"开始获取memories: {calculate_time}")
             memories = await self.store_memory_manager.asearch(
                 query=last_human_message.content,
                 config=config
             )
+            rprint(
+                f"获取memories成功: cost time = {datetime.now() - calculate_time}")
+            calculate_time = datetime.now()
             user_id = config["configurable"]["user_id"]
             conversation_id = config["configurable"]["conversation_id"]
             histories = await self.rag_and_get_context(
@@ -277,6 +282,8 @@ class AgentService:
                 user_id=user_id,
                 conversation_id=conversation_id
             )
+            rprint(
+                f"获取histories成功: cost time = {datetime.now() - calculate_time}")
         rprint(
             f"全部消息数量: {len(state["messages"])}, 本次保存的消息数量: {len(keep_messages)}\n本轮消息数量: {len(current_round_messages)}\n当前记忆: {memories}\n")
 

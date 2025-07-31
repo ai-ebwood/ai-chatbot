@@ -35,7 +35,6 @@ async def lifespan(app: FastAPI):
     """
     print("Application startup: Initializing resources...")
     pg_conn = os.environ["NEON_DB_URL"]
-    async_pg_conn = os.environ["NEON_DB_URL_ASYNC"]
 
     embeddings = OpenAIEmbeddings(
         model="text-embedding-3-small"
@@ -52,6 +51,7 @@ async def lifespan(app: FastAPI):
         # await store.setup()
 
         # create vector store
+        # async_pg_conn = os.environ["NEON_DB_URL_ASYNC"]
         # vector_store = await create_pg_vector(async_pg_conn, embeddings)
         vector_store = await create_qdrant_vector(embeddings)
 
